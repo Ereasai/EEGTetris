@@ -1,6 +1,11 @@
 # THANK YOU CHAT GPT
 # entirely written by GPT-4
 
+# Instructions
+# Place the XDF file you want to conver in the directory xdf. Run `xdfToCSV.py`. Result
+# should be placed in `xdf-results`. There should be two files. One contains the channels
+# one contains the markers.
+
 import os
 import pyxdf
 import pandas as pd
