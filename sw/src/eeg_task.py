@@ -3,8 +3,7 @@ import psychopy
 import pylsl
 import random
 import numpy as np
-from psychopy import event
-from psychopy import visual
+from psychopy import visual, core, constants, event, sound
 import threading
 import sys
 import os
@@ -15,10 +14,12 @@ from math import atan2, degrees
 from datetime import datetime
 
 WINDOW = None
-EEG_INLET = None
-MARKER_OUTLET = None
+DRAW_OBJECTS = []
+DRAW_THR = None
 
-BG_COLOR = [-1,-1,-1]
+CLOCK = core.Clock()
+
+MARKER_OUTLET = None
 
 PROMPT_FRAMERATE = 10
 PROMPT_DURATION = 2
@@ -27,21 +28,19 @@ PROMPT_DURATION = 2
 # in the window
 
 def InitFixation(size=50):
-    return psychopy.visual.ShapeStim(
-            win=WINDOW,
-            units='pix',
-            size=size,
-            fillColor=[1, 1, 1],
-            lineColor=[1, 1, 1],
-            lineWidth=0.01,
-            vertices='cross',
-            name='off', # Used to determine state
-            pos=[0, 0]
-        )
+
+    return visual.ShapeStim(
+        win=WINDOW,
+        vertices=((0, -10), (0, 10), (0,0), (-10, 0), (10, 0)), 
+        lineWidth=1,
+        closeShape=False,
+        lineColor="black",
+        fillColor="black"
+    )
 
 def CreateSequence(n):
     # List of movement prompts
-    movements = ['CLENCH FIST','SNAP'] # TODO: add correct names for stimulus
+    movements = ['LEFT','RIGHT'] # TODO: add correct names for stimulus
     # Duplicate movements by a factor of n(the argument) to create a longer sequence
     seq = movements*n
     
@@ -49,69 +48,67 @@ def CreateSequence(n):
     random.seed()
     random.shuffle(seq)
 
-    # Add rests between each movement prompt in seq to restSeq
-    restSeq = []
-    for s in seq:
-        restSeq.extend(['REST', s])
+    return seq
 
-    return restSeq
+def CreateMarker(task):
+    myMap = {"LEFT" : 0, "LEFT_END" : 1, "RIGHT" : 2, "RIGHT_END" : 3}
+    MARKER_OUTLET.push_sample(str(myMap[task]))
+
+def RunParadigm():    
+    vidStim = psychopy.visual.MovieStim(WINDOW, 
+                                        filename='./resources/death-corridor-death.gif', 
+                                        size=[100,100], pos=(100, 0), autoStart=False)
+    taskStim = psychopy.visual.TextStim(WINDOW, text='',
+                                     units='norm', alignText='center', color="black");
+    fixation = InitFixation(10)
+    beep = sound.Sound('./resources/beep.wav')
     
-# def RunParadigm():
-#     met = psychopy.visual.TextStim(WINDOW, text = 'X', units = 'norm', alignText = 'center');
-#     met.setHeight(0.1);
-#     met.pos = (-0.4, 0)
-#     met.draw()
+    totalChunk = 2
+    for chunk in range(totalChunk):
 
-#     vidSize = [100, 100]
-#     vidStim = psychopy.visual.MovieStim(WINDOW, filename = './resources/death-corridor-death.gif', size = vidSize, pos=(100, 0), autoStart = True)
+        sequence = CreateSequence(1)
 
-#     sequence = CreateSequence(2)
+        for task in sequence:
+            # FIXATION
+            fixation.draw()
+            WINDOW.flip()
+            core.wait(2)
 
-#     fix = InitFixation();
-#     fix.draw()
+            # CUE
+            beep.play()
+            CreateMarker(task)
+            core.wait(random.uniform(0.5, 0.8))
+
+            # TASK WITH VIDEO
+            taskStim.text = task
+            vidStim.seek(0)
+            vidStim.play()
+            CLOCK.reset()
+            while CLOCK.getTime() < 2: # stimulus length
+                vidStim.draw()
+                taskStim.draw()
+                WINDOW.flip()
+
+            # REST
+            CreateMarker(task + "_END")
+            WINDOW.flip()
+            core.wait(random.uniform(4.5, 6.5))
+
+        if chunk == totalChunk-1: # on last iteration, exit.
+            break
+
+        # LONG BREAK
+        taskStim.text = f'You can rest, press SPACE to do next chunk. (progress: {chunk+1}/{totalChunk})'
+        taskStim.draw()
+        WINDOW.flip()
+        event.waitKeys(keyList=['space']) 
     
-#     metadataFile = open(metadata, "w")
+    # FINISHED
+    taskStim.text = "Task completed. Press ANY KEY to exit."
+    taskStim.draw()
+    WINDOW.flip()
+    event.waitKeys(keyList=None) 
 
-#     for item in sequence:
-#         met.setText(item)
-#         met.draw()
-#         WINDOW.flip()
-
-#         times = EEG_INLET.pull_sample()
-
-
-#         metadataFile.write(str(times[1]) + ", " + item + "\n")
-
-#         for x in range(PROMPT_FRAMERATE):
-#             vidStim.draw()
-#             WINDOW.flip()
-#             time.sleep(PROMPT_DURATION / PROMPT_FRAMERATE)
-
-def RunParadigm():
-    for i in range(0,10):
-        MARKER_OUTLET.push_sample(str(i))
-        time.sleep(1)
-
-        
-
-#     WINDOW.flip() # swap buffer
-
-"""
-LSL Thread
-
-Open `fpath` and save data points from EEG inlet. Saves the file in CVS file
-format. (time, channel_1, ..., channel_8)
-
-TODO: consider buffer implementaton 
-"""
-def lsl_thread(fpath):
-    print("LSL Thread started.")
-    while True:
-        sample, times = EEG_INLET.pull_sample()
-        with open(fpath, "a") as fo:
-            fo.write(f"{str(times)}, {str(sample)[1:-1]}\n")
-
-    
 if __name__ == "__main__":
     
     WINDOW = psychopy.visual.Window(
@@ -119,33 +116,35 @@ if __name__ == "__main__":
         size=[600, 400], # add
         units="pix",
         fullscr=False,
-        color=BG_COLOR,
+        color="white",
         gammaErrorPolicy="ignore"
     )
 
-    # create eeg stream & inlet
-    # eeg_streams = pylsl.resolve_stream('type', 'EEG')
-    # EEG_INLET = pylsl.stream_inlet(eeg_streams[0], recover = False)
-    # print("Inlet created.")
-    # time_str = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-    # lsl thread
-    # lsl = threading.Thread(target=lsl_thread, args=(f"./results/{time_str}_data.csv",))
-    # lsl.daemon = True   # this thread does not affect the termination of the process.
-                        # if main finishes, the whole process will end, regardless of whether lsl is done.
-    # lsl.start()
-
+    # create marker stream
     info = pylsl.stream_info('EMG_Markers', 'Markers', 1, 0, pylsl.cf_string, 'unsampledStream');
     MARKER_OUTLET = pylsl.stream_outlet(info, 1, 1)
     
-    input("waiting")
+    while not MARKER_OUTLET.have_consumers():
+        # warning message for LabRecorder
+        warning_msg = psychopy.visual.TextStim(WINDOW, 
+                                            text='Make sure that LabRecorder is connected with EMG_Markers. Trial will begin autoamtically when you start recording in LabRecorder.', 
+                                            units='norm', alignText='center', color=[1,0,0]);
+        warning_msg.draw()
+        WINDOW.flip()
+        core.wait(0.2)
+
+
+
+    # event.waitKeys(keyList=["space"]) # wait for user
+
     # RUN SEQEUENCE OF TRIALS
-    # metadata = f"./results/{time_str}_metadata.csv"
-    print("starting paradigm")
     RunParadigm()
 
-    time.sleep(2)
+    # cleanup
+    WINDOW.close()
+    core.quit()
 
-    # END OF MAIN
+    ####################################################### END OF MAIN
 
 
 
