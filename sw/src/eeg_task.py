@@ -14,15 +14,8 @@ from math import atan2, degrees
 from datetime import datetime
 
 WINDOW = None
-DRAW_OBJECTS = []
-DRAW_THR = None
-
 CLOCK = core.Clock()
-
 MARKER_OUTLET = None
-
-PROMPT_FRAMERATE = 10
-PROMPT_DURATION = 2
 
 # creates a psychopy ShapeStim object, for creating a fixation cross
 # in the window
@@ -124,6 +117,7 @@ if __name__ == "__main__":
     info = pylsl.stream_info('EMG_Markers', 'Markers', 1, 0, pylsl.cf_string, 'unsampledStream');
     MARKER_OUTLET = pylsl.stream_outlet(info, 1, 1)
     
+    # wait for markerstream to be used by LabRecorder
     while not MARKER_OUTLET.have_consumers():
         # warning message for LabRecorder
         warning_msg = psychopy.visual.TextStim(WINDOW, 
@@ -132,10 +126,6 @@ if __name__ == "__main__":
         warning_msg.draw()
         WINDOW.flip()
         core.wait(0.2)
-
-
-
-    # event.waitKeys(keyList=["space"]) # wait for user
 
     # RUN SEQEUENCE OF TRIALS
     RunParadigm()
