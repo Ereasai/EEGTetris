@@ -17,49 +17,51 @@ WINDOW = None
 CLOCK = core.Clock()
 MARKER_OUTLET = None
 
-# creates a psychopy ShapeStim object, for creating a fixation cross
-# in the window
-
-def InitFixation(size=50):
-
-    return visual.ShapeStim(
-        win=WINDOW,
-        vertices=((0, -10), (0, 10), (0,0), (-10, 0), (10, 0)), 
-        lineWidth=1,
-        closeShape=False,
-        lineColor="black",
-        fillColor="black"
-    )
-
+"""
+Create a randomized sequence of tasks. There will be `n` of each task.
+"""
 def CreateSequence(n):
-    # List of movement prompts
-    movements = ['LEFT','RIGHT'] # TODO: add correct names for stimulus
-    # Duplicate movements by a factor of n(the argument) to create a longer sequence
+    
+    movements = ['LEFT','RIGHT'] 
     seq = movements*n
     
-    # Randomize order of sequence
+    # randomize order of sequence
     random.seed()
     random.shuffle(seq)
 
     return seq
 
-def CreateMarker(task):
-    myMap = {"LEFT" : 0, "LEFT_END" : 1, "RIGHT" : 2, "RIGHT_END" : 3}
-    MARKER_OUTLET.push_sample(str(myMap[task]))
+def RunParadigm():
 
-def RunParadigm():    
-    vidStim = psychopy.visual.MovieStim(WINDOW, 
-                                        filename='./resources/death-corridor-death.gif', 
-                                        size=[100,100], pos=(100, 0), autoStart=False)
-    taskStim = psychopy.visual.TextStim(WINDOW, text='',
-                                     units='norm', alignText='center', color="black");
-    fixation = InitFixation(10)
+    def CreateMarker(task):
+        myMap = {"LEFT" : 0, "LEFT_END" : 1, "RIGHT" : 2, "RIGHT_END" : 3}
+        MARKER_OUTLET.push_sample(str(myMap[task]))
+
+    # SET UP STIMULI
+    # TODO: there will be gifs for each task. 
+    vidStim = visual.MovieStim(WINDOW, filename='./resources/death-corridor-death.gif', 
+                                       size=[100,100], 
+                                       pos=(100, 0), 
+                                       autoStart=False)
+    vidStim.play() # file is not loaded in until it is played. 
+                   # removes delay when being displayed for the first time.
+    taskStim = visual.TextStim(WINDOW, text='', 
+                                       units='norm', 
+                                       alignText='center', 
+                                       color="black");
+    fixation = visual.ShapeStim(WINDOW, vertices=((0, -10), (0, 10), (0,0), (-10, 0), (10, 0)), 
+                                        lineWidth=1,  
+                                        closeShape=False,  
+                                        lineColor="black",
+                                        fillColor="black")
     beep = sound.Sound('./resources/beep.wav')
     
+    # PARADIGM
     totalChunk = 2
+    taskPerChunk = 1
     for chunk in range(totalChunk):
 
-        sequence = CreateSequence(1)
+        sequence = CreateSequence(taskPerChunk)
 
         for task in sequence:
             # FIXATION
@@ -104,9 +106,9 @@ def RunParadigm():
 
 if __name__ == "__main__":
     
-    WINDOW = psychopy.visual.Window(
+    WINDOW = visual.Window(
         screen=0,
-        size=[600, 400], # add
+        size=[600, 400],
         units="pix",
         fullscr=False,
         color="white",
@@ -117,14 +119,15 @@ if __name__ == "__main__":
     info = pylsl.stream_info('EMG_Markers', 'Markers', 1, 0, pylsl.cf_string, 'unsampledStream');
     MARKER_OUTLET = pylsl.stream_outlet(info, 1, 1)
     
+    # warning message for LabRecorder
+    warning_msg = visual.TextStim(WINDOW, text='Make sure that LabRecorder is connected with EMG_Markers. \n \
+                                                Trial will begin autoamtically when you start recording in LabRecorder.',
+                                          units='norm', alignText='center', color=[1,0,0], bold=True);
+    warning_msg.draw()
+    WINDOW.flip()
+
     # wait for markerstream to be used by LabRecorder
     while not MARKER_OUTLET.have_consumers():
-        # warning message for LabRecorder
-        warning_msg = psychopy.visual.TextStim(WINDOW, 
-                                            text='Make sure that LabRecorder is connected with EMG_Markers. Trial will begin autoamtically when you start recording in LabRecorder.', 
-                                            units='norm', alignText='center', color=[1,0,0]);
-        warning_msg.draw()
-        WINDOW.flip()
         core.wait(0.2)
 
     # RUN SEQEUENCE OF TRIALS
@@ -135,24 +138,3 @@ if __name__ == "__main__":
     core.quit()
 
     ####################################################### END OF MAIN
-
-
-
-
-# Calculate number of frames in ms milliseconds, given ms and fs (frame rate)
-def MsToFrames(ms, fs):
-    dt = 1000 / fs
-    return np.round(ms / dt).astype(int)
-
-
-
-"""
-Unused Methods from aeroMus
-
-    DegToPix
-    listFlatten
-    InitPhotosensor
-
-    TODO
-    left right cross
-"""
