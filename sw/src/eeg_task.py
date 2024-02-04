@@ -1,17 +1,8 @@
-import time
-import psychopy
+# import time       # DO NOT USE time.sleep() for timing, use core.wait() 
 import pylsl
 import random
 import numpy as np
 from psychopy import visual, core, constants, event, sound
-import threading
-import sys
-import os
-
-from itertools import chain
-from math import atan2, degrees
-
-from datetime import datetime
 
 WINDOW = None
 CLOCK = core.Clock()
@@ -121,7 +112,7 @@ if __name__ == "__main__":
     
     # warning message for LabRecorder
     warning_msg = visual.TextStim(WINDOW, text='Make sure that LabRecorder is connected with EMG_Markers. \n \
-                                                Trial will begin autoamtically when you start recording in LabRecorder.',
+                                                Trial will begin automatically when you start recording in LabRecorder.',
                                           units='norm', alignText='center', color=[1,0,0], bold=True);
     warning_msg.draw()
     WINDOW.flip()
