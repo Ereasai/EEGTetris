@@ -1,39 +1,58 @@
+# THANK YOU CHAT GPT
+# entirely written by GPT-4
+
 import os
 import pyxdf
 import pandas as pd
+import numpy as np
 
-# Define the source and target directories
+def save_stream_to_csv(stream, xdf_file, target_dir, stream_index):
+    """
+    Saves a single stream to a CSV file.
+    """
+    # Extract common information
+    stream_type = stream['info']['type'][0].replace(' ', '_')
+    stream_name = stream['info']['name'][0].replace(' ', '_')
+    timestamps = stream['time_stamps']
+    
+    # Determine content based on the presence of time_series or time_stamps
+    if 'time_series' in stream:
+        content = stream['time_series']
+        if isinstance(content[0], list) or isinstance(content[0], np.ndarray):
+            # For multi-dimensional data
+            columns = [f'Channel_{i+1}' for i in range(len(content[0]))]
+        else:
+            # For single-dimensional data
+            columns = ['Value']
+        df = pd.DataFrame(content, columns=columns)
+    else:
+        # Default to a single column of values if 'time_series' is not present
+        df = pd.DataFrame(timestamps, columns=['Timestamps'])
+    
+    df.insert(0, 'Timestamp', timestamps)
+    
+    # Construct CSV file name and path
+    csv_file_name = f"{xdf_file.replace('.xdf', '')}_Stream{stream_index+1}_{stream_type}_{stream_name}.csv"
+    csv_path = os.path.join(target_dir, csv_file_name)
+    
+    # Save to CSV
+    df.to_csv(csv_path, index=False)
+    print(f"Saved {stream_type} stream to {csv_path}")
+
+# Source and target directories
 source_dir = './xdf'
 target_dir = './xdf-results'
 
-# Create the target directory if it doesn't exist
+# Ensure target directory exists
 if not os.path.exists(target_dir):
     os.makedirs(target_dir)
 
-# List all XDF files in the source directory
-xdf_files = [f for f in os.listdir(source_dir) if f.endswith('.xdf')]
-
-for xdf_file in xdf_files:
-    # Construct the full path to the current XDF file
-    xdf_path = os.path.join(source_dir, xdf_file)
-    
-    # Load the XDF file
-    streams, header = pyxdf.load_xdf(xdf_path)
-    
-    # Assuming the first stream contains the EEG data you're interested in
-    eeg_data = streams[0]['time_series']
-    timestamps = streams[0]['time_stamps']
-    channel_names = ['Channel_' + str(i+1) for i in range(eeg_data.shape[1])]
-    
-    # Create a DataFrame
-    df = pd.DataFrame(eeg_data, columns=channel_names)
-    df.insert(0, 'Timestamp', timestamps)
-    
-    # Construct the CSV file name based on the XDF file name
-    csv_file_name = xdf_file.replace('.xdf', '.csv')
-    csv_path = os.path.join(target_dir, csv_file_name)
-    
-    # Save the DataFrame to a CSV file
-    df.to_csv(csv_path, index=False)
-    
-    print(f'Data from {xdf_file} successfully saved to {csv_path}')
+# Process each XDF file in the source directory
+for xdf_file in os.listdir(source_dir):
+    if xdf_file.endswith('.xdf'):
+        xdf_path = os.path.join(source_dir, xdf_file)
+        streams, header = pyxdf.load_xdf(xdf_path)
+        
+        # Save each stream to a separate CSV file
+        for i, stream in enumerate(streams):
+            save_stream_to_csv(stream, xdf_file, target_dir, i)

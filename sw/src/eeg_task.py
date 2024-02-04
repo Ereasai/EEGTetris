@@ -16,6 +16,7 @@ from datetime import datetime
 
 WINDOW = None
 EEG_INLET = None
+MARKER_OUTLET = None
 
 BG_COLOR = [-1,-1,-1]
 
@@ -55,41 +56,45 @@ def CreateSequence(n):
 
     return restSeq
     
-def RunParadigm(metadata):
-    met = psychopy.visual.TextStim(WINDOW, text = 'X', units = 'norm', alignText = 'center');
-    met.setHeight(0.1);
-    met.pos = (-0.4, 0)
-    met.draw()
+# def RunParadigm():
+#     met = psychopy.visual.TextStim(WINDOW, text = 'X', units = 'norm', alignText = 'center');
+#     met.setHeight(0.1);
+#     met.pos = (-0.4, 0)
+#     met.draw()
 
-    vidSize = [100, 100]
-    vidStim = psychopy.visual.MovieStim(WINDOW, filename = './resources/death-corridor-death.gif', size = vidSize, pos=(100, 0), autoStart = True)
+#     vidSize = [100, 100]
+#     vidStim = psychopy.visual.MovieStim(WINDOW, filename = './resources/death-corridor-death.gif', size = vidSize, pos=(100, 0), autoStart = True)
 
-    sequence = CreateSequence(2)
+#     sequence = CreateSequence(2)
 
-    fix = InitFixation();
-    fix.draw()
+#     fix = InitFixation();
+#     fix.draw()
     
-    metadataFile = open(metadata, "w")
+#     metadataFile = open(metadata, "w")
 
-    for item in sequence:
-        met.setText(item)
-        met.draw()
-        WINDOW.flip()
+#     for item in sequence:
+#         met.setText(item)
+#         met.draw()
+#         WINDOW.flip()
 
-        times = EEG_INLET.pull_sample()
+#         times = EEG_INLET.pull_sample()
 
 
-        metadataFile.write(str(times[1]) + ", " + item + "\n")
+#         metadataFile.write(str(times[1]) + ", " + item + "\n")
 
-        for x in range(PROMPT_FRAMERATE):
-            vidStim.draw()
-            WINDOW.flip()
-            time.sleep(PROMPT_DURATION / PROMPT_FRAMERATE)
+#         for x in range(PROMPT_FRAMERATE):
+#             vidStim.draw()
+#             WINDOW.flip()
+#             time.sleep(PROMPT_DURATION / PROMPT_FRAMERATE)
 
-    
+def RunParadigm():
+    for i in range(0,10):
+        MARKER_OUTLET.push_sample(str(i))
+        time.sleep(1)
+
         
 
-    WINDOW.flip() # swap buffer
+#     WINDOW.flip() # swap buffer
 
 """
 LSL Thread
@@ -119,22 +124,24 @@ if __name__ == "__main__":
     )
 
     # create eeg stream & inlet
-    eeg_streams = pylsl.resolve_stream('type', 'EEG')
-    EEG_INLET = pylsl.stream_inlet(eeg_streams[0], recover = False)
-    print("Inlet created.")
-
-    time_str = datetime.now().strftime("%Y_%m_%d_%H%M%S")
-
+    # eeg_streams = pylsl.resolve_stream('type', 'EEG')
+    # EEG_INLET = pylsl.stream_inlet(eeg_streams[0], recover = False)
+    # print("Inlet created.")
+    # time_str = datetime.now().strftime("%Y_%m_%d_%H%M%S")
     # lsl thread
-    metadata = f"./results/{time_str}_metadata.csv"
-    lsl = threading.Thread(target=lsl_thread, args=(f"./results/{time_str}_data.csv",))
-    lsl.daemon = True   # this thread does not affect the termination of the process.
+    # lsl = threading.Thread(target=lsl_thread, args=(f"./results/{time_str}_data.csv",))
+    # lsl.daemon = True   # this thread does not affect the termination of the process.
                         # if main finishes, the whole process will end, regardless of whether lsl is done.
-    lsl.start()
+    # lsl.start()
+
+    info = pylsl.stream_info('EMG_Markers', 'Markers', 1, 0, pylsl.cf_string, 'unsampledStream');
+    MARKER_OUTLET = pylsl.stream_outlet(info, 1, 1)
     
-    time.sleep(2)
+    input("waiting")
     # RUN SEQEUENCE OF TRIALS
-    RunParadigm(metadata)
+    # metadata = f"./results/{time_str}_metadata.csv"
+    print("starting paradigm")
+    RunParadigm()
 
     time.sleep(2)
 
@@ -156,4 +163,7 @@ Unused Methods from aeroMus
     DegToPix
     listFlatten
     InitPhotosensor
+
+    TODO
+    left right cross
 """
