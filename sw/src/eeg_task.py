@@ -1,4 +1,8 @@
-# import time       # DO NOT USE time.sleep() for timing, use core.wait() 
+"""
+written by
+    Gunwoo Kim
+    Aric Shen
+"""
 import pylsl
 import random
 import numpy as np
