@@ -8,6 +8,8 @@ import random
 import numpy as np
 from psychopy import visual, core, constants, event, sound
 
+import utils
+
 WINDOW = None
 CLOCK = core.Clock()
 MARKER_OUTLET = None
@@ -29,8 +31,8 @@ def CreateSequence(n):
 def RunParadigm():
 
     def CreateMarker(task):
-        myMap = {"LEFT" : 0, "LEFT_END" : 1, "RIGHT" : 2, "RIGHT_END" : 3}
-        MARKER_OUTLET.push_sample(str(myMap[task]))
+        marker_id = utils.get_marker_number(task)
+        MARKER_OUTLET.push_sample(str(marker_id))
 
     # SET UP STIMULI
     # TODO: there will be gifs for each task. 
