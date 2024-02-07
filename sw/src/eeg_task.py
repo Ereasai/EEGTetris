@@ -113,11 +113,11 @@ if __name__ == "__main__":
     )
 
     # create marker stream
-    info = pylsl.stream_info('EMG_Markers', 'Markers', 1, 0, pylsl.cf_string, 'unsampledStream');
+    info = pylsl.stream_info('EEG_Markers', 'Markers', 1, 0, pylsl.cf_string, 'unsampledStream');
     MARKER_OUTLET = pylsl.stream_outlet(info, 1, 1)
     
     # warning message for LabRecorder
-    warning_msg = visual.TextStim(WINDOW, text='Make sure that LabRecorder is connected with EMG_Markers. \n \
+    warning_msg = visual.TextStim(WINDOW, text='Make sure that LabRecorder is connected with EEG_Markers. \n \
                                                 Trial will begin automatically when you start recording in LabRecorder.',
                                           units='norm', alignText='center', color=[1,0,0], bold=True);
     warning_msg.draw()
