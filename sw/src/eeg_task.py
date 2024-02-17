@@ -6,7 +6,7 @@ written by
 import pylsl
 import random
 import numpy as np
-from psychopy import visual, core, constants, event, sound
+from psychopy import visual, core, constants, event, prefs, sound
 
 import utils
 
@@ -15,11 +15,18 @@ CLOCK = core.Clock()
 MARKER_OUTLET = None
 
 """
+Pushes a given event onto the marker stream. MARKER_OUTLET must be set up.
+"""
+def CreateMarker(event):
+        marker_id = utils.get_marker_number(event)
+        MARKER_OUTLET.push_sample(str(marker_id))
+
+"""
 Create a randomized sequence of tasks. There will be `n` of each task.
 """
 def CreateSequence(n):
     
-    movements = ['LEFT','RIGHT'] 
+    movements = ['LEFT_ARM','RIGHT_ARM', 'LEFT_LEG','RIGHT_LEG'] 
     seq = movements*n
     
     # randomize order of sequence
@@ -30,22 +37,32 @@ def CreateSequence(n):
 
 def RunParadigm():
 
-    def CreateMarker(task):
-        marker_id = utils.get_marker_number(task)
-        MARKER_OUTLET.push_sample(str(marker_id))
-
     # SET UP STIMULI
-    # TODO: there will be gifs for each task. 
-    vidStim = visual.MovieStim(WINDOW, filename='./resources/death-corridor-death.gif', 
-                                       size=[100,100], 
-                                       pos=(100, 0), 
-                                       autoStart=False)
-    vidStim.play() # file is not loaded in until it is played. 
-                   # removes delay when being displayed for the first time.
+    vidStims = {"LEFT_ARM" : visual.MovieStim(WINDOW, filename='./resources/left-arm.mp4', 
+                                       pos=(0, 0), 
+                                       size=[224,400],
+                                       autoStart=False),
+                "RIGHT_ARM" : visual.MovieStim(WINDOW, filename='./resources/right-arm.mp4', 
+                                       pos=(0, 0), 
+                                       size=[224,400],
+                                       autoStart=False),
+                "LEFT_LEG" : visual.MovieStim(WINDOW, filename='./resources/left-leg.mp4', 
+                                       pos=(0, 0), 
+                                       size=[224,400],
+                                       autoStart=False),
+                "RIGHT_LEG" : visual.MovieStim(WINDOW, filename='./resources/right-leg.mp4', 
+                                       pos=(0, 0), 
+                                       size=[224,400],
+                                       autoStart=False),
+    }
     taskStim = visual.TextStim(WINDOW, text='', 
                                        units='norm', 
                                        alignText='center', 
-                                       color="black");
+                                       color="white")
+    messageStim = visual.TextStim(WINDOW, text='', 
+                                       units='norm', 
+                                       alignText='center', 
+                                       color="black")
     fixation = visual.ShapeStim(WINDOW, vertices=((0, -10), (0, 10), (0,0), (-10, 0), (10, 0)), 
                                         lineWidth=1,  
                                         closeShape=False,  
@@ -54,8 +71,8 @@ def RunParadigm():
     beep = sound.Sound('./resources/beep.wav')
     
     # PARADIGM
-    totalChunk = 2
-    taskPerChunk = 1
+    totalChunk = 6
+    taskPerChunk = 5
     for chunk in range(totalChunk):
 
         sequence = CreateSequence(taskPerChunk)
@@ -72,14 +89,19 @@ def RunParadigm():
             core.wait(random.uniform(0.5, 0.8))
 
             # TASK WITH VIDEO
-            taskStim.text = task
+            taskStim.text = task.replace("_", " ")
+            
+            vidStim = vidStims[task]
             vidStim.seek(0)
             vidStim.play()
+            vidStim.draw()
             CLOCK.reset()
             while CLOCK.getTime() < 2: # stimulus length
                 vidStim.draw()
                 taskStim.draw()
                 WINDOW.flip()
+            vidStim.pause()
+            vidStim.seek(0)
 
             # REST
             CreateMarker(task + "_END")
@@ -90,14 +112,14 @@ def RunParadigm():
             break
 
         # LONG BREAK
-        taskStim.text = f'You can rest, press SPACE to do next chunk. (progress: {chunk+1}/{totalChunk})'
-        taskStim.draw()
+        messageStim.text = f'You can rest, press SPACE to do next chunk. (progress: {chunk+1}/{totalChunk})'
+        messageStim.draw()
         WINDOW.flip()
         event.waitKeys(keyList=['space']) 
     
     # FINISHED
-    taskStim.text = "Task completed. Press ANY KEY to exit."
-    taskStim.draw()
+    messageStim.text = "Task completed. Press ANY KEY to exit."
+    messageStim.draw()
     WINDOW.flip()
     event.waitKeys(keyList=None) 
 
@@ -124,8 +146,8 @@ if __name__ == "__main__":
     WINDOW.flip()
 
     # wait for markerstream to be used by LabRecorder
-    while not MARKER_OUTLET.have_consumers():
-        core.wait(0.2)
+    # while not MARKER_OUTLET.have_consumers():
+    #     core.wait(0.2)
 
     # RUN SEQEUENCE OF TRIALS
     RunParadigm()

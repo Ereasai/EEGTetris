@@ -11,10 +11,14 @@ This is needed because LSL marker inlet requires us to send in a number, not a
 string. 
 """
 class Marker_Enum(Enum):
-    LEFT = 0
-    LEFT_END = 1
-    RIGHT = 2
-    RIGHT_END = 3
+    LEFT_ARM = 0
+    LEFT_ARM_END = 1
+    RIGHT_ARM = 2
+    RIGHT_ARM_END = 3
+    LEFT_LEG = 4
+    LEFT_LEG_END = 5
+    RIGHT_LEG = 6
+    RIGHT_LEG_END = 7
     
 """
 Given name of the marker, it returns the corresponding code.
