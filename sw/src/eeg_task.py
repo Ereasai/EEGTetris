@@ -78,14 +78,17 @@ def RunParadigm():
         sequence = CreateSequence(taskPerChunk)
 
         for task in sequence:
+            # task = LEFT_ARM, RIGHT_ARM, LEFT_LEG, RIGHT_LEG
+
             # FIXATION
+            CreateMarker(task) 
             fixation.draw()
             WINDOW.flip()
             core.wait(2)
 
             # CUE
             beep.play()
-            CreateMarker(task)
+            CreateMarker("CUE")
             core.wait(random.uniform(0.5, 0.8))
 
             # TASK WITH VIDEO
@@ -104,9 +107,13 @@ def RunParadigm():
             vidStim.seek(0)
 
             # REST
-            CreateMarker(task + "_END")
+            CreateMarker("MI_START")
+            
             WINDOW.flip()
-            core.wait(random.uniform(4.5, 6.5))
+            core.wait(3)
+            CreateMarker(f'{task}_END')
+
+            core.wait(random.uniform(0.5,0.85))
 
         if chunk == totalChunk-1: # on last iteration, exit.
             break
@@ -123,6 +130,7 @@ def RunParadigm():
     WINDOW.flip()
     event.waitKeys(keyList=None) 
 
+########################################################### MAIN
 if __name__ == "__main__":
     
     WINDOW = visual.Window(
@@ -146,8 +154,8 @@ if __name__ == "__main__":
     WINDOW.flip()
 
     # wait for markerstream to be used by LabRecorder
-    # while not MARKER_OUTLET.have_consumers():
-    #     core.wait(0.2)
+    while not MARKER_OUTLET.have_consumers():
+        core.wait(0.2)
 
     # RUN SEQEUENCE OF TRIALS
     RunParadigm()
@@ -156,4 +164,4 @@ if __name__ == "__main__":
     WINDOW.close()
     core.quit()
 
-    ####################################################### END OF MAIN
+########################################################### END OF MAIN

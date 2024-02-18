@@ -19,6 +19,8 @@ class Marker_Enum(Enum):
     LEFT_LEG_END = 5
     RIGHT_LEG = 6
     RIGHT_LEG_END = 7
+    CUE = 8
+    MI_START = 9
     
 """
 Given name of the marker, it returns the corresponding code.
