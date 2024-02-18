@@ -71,8 +71,8 @@ def RunParadigm():
     beep = sound.Sound('./resources/beep.wav')
     
     # PARADIGM
-    totalChunk = 2 # 6
-    taskPerChunk = 1 # 5
+    totalChunk = 6
+    taskPerChunk = 5
     for chunk in range(totalChunk):
 
         sequence = CreateSequence(taskPerChunk)
