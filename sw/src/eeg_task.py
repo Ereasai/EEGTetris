@@ -8,7 +8,7 @@ import random
 import numpy as np
 from psychopy import visual, core, constants, event, prefs, sound
 
-import utils
+import EEGTetris.dc.utils as utils
 
 WINDOW = None
 CLOCK = core.Clock()

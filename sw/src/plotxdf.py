@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-import utils
+import EEGTetris.dc.utils as utils
 
 def plot_eeg_with_event_markers(eeg_file_path, markers_file_path):
     # Load the EEG data file
