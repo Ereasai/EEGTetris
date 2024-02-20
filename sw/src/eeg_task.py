@@ -8,8 +8,6 @@ import random
 import numpy as np
 from psychopy import visual, core, constants, event, prefs, sound
 
-import EEGTetris.dc.utils as utils
-
 WINDOW = None
 CLOCK = core.Clock()
 MARKER_OUTLET = None
@@ -18,8 +16,8 @@ MARKER_OUTLET = None
 Pushes a given event onto the marker stream. MARKER_OUTLET must be set up.
 """
 def CreateMarker(event):
-        marker_id = utils.get_marker_number(event)
-        MARKER_OUTLET.push_sample(str(marker_id))
+        # marker_id = utils.get_marker_number(event)
+        MARKER_OUTLET.push_sample(pylsl.vectorstr([event]));
 
 """
 Create a randomized sequence of tasks. There will be `n` of each task.

@@ -4,8 +4,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-import EEGTetris.dc.utils as utils
-
 def plot_eeg_with_event_markers(eeg_file_path, markers_file_path):
     # Load the EEG data file
     eeg_data = pd.read_csv(eeg_file_path)
@@ -25,8 +23,8 @@ def plot_eeg_with_event_markers(eeg_file_path, markers_file_path):
         # Adding markers with actual event names from the second column
         for _, row in markers_data.iterrows():
             plt.axvline(x=row['Timestamp'], color='r', linestyle='--')
-            marker_id = np.rint(row['Channel_1']).astype(int) # obtain marker id
-            eventName = utils.get_marker_name(marker_id) # convert id to name (string)
+            # marker_id = np.rint().astype(int) # obtain marker id
+            eventName = row['Channel_1']
             plt.text(row['Timestamp'], plt.ylim()[1], eventName, color='r', verticalalignment='bottom', rotation=45)
 
         plt.legend()
@@ -38,4 +36,4 @@ def plot_eeg_with_event_markers(eeg_file_path, markers_file_path):
 
 # Replace 'path_to_your_eeg_data.csv' and 'path_to_your_markers_data.csv' with the actual paths to your files
 
-plot_eeg_with_event_markers('./xdf-results/test0_data.csv', './xdf-results/test0_markers.csv')
+plot_eeg_with_event_markers('./xdf-results/t0_eeg.csv', './xdf-results/t0_markers.csv')
