@@ -33,7 +33,6 @@ def vis_preprocess(epoch, Wn=[7, 30], Fs=300, n=4):
 
 
 pipeline = None
-
 eeg_inlet = None
 result_outlet = None
 
@@ -41,16 +40,17 @@ result_outlet = None
 def classify(epoch_data):
     channel_data = [channels for _, channels in epoch_data]
     channel_data_transposed = np.array(channel_data).T
-
-    # Add an extra dimension to represent a single trial
+    channel_data_transposed = channel_data_transposed[0:4]
+    
+    # add an extra dimension to represent a single epoch to classify
     single_trial_formatted = np.expand_dims(channel_data_transposed, axis=0)
 
     result = pipeline.predict(single_trial_formatted)
     # result looks like [trial1_result, trial2_result, ...]
     # since we only pass in single trial, [trial_result]
 
-    # result = ['left', 'right'][random.randint(0,1)]
-    return ['left','right'][result[0].item()]
+    return ['left', 'right'][random.randint(0,1)]
+    # return ['left','right'][int(result[0].item())]
 
 def init_lsl():
     print("Looking for an EEG stream...")
@@ -118,12 +118,12 @@ def plot_epoch (epoch):
     epoch = sorted(epoch, key=lambda x: x[0])
 
     # apply preprocessing
-    x, ys = vis_preprocess(epoch)
-    x = x.reshape(-1)
+    # x, ys = vis_mne(epoch)
+    # x = x.reshape(-1)
 
     # no preprocessing
-    # x  = np.array([tup[0] for tup in epoch]).reshape(-1)
-    # ys = np.array([tup[1] for tup in epoch])
+    x  = np.array([tup[0] for tup in epoch]).reshape(-1)
+    ys = np.array([tup[1] for tup in epoch])
     
     # update each curve (8 channels => 8 curves)
     for ch_index in range(8):
@@ -140,17 +140,17 @@ if __name__ == '__main__':
     pg.setConfigOptions(antialias=True)
 
     plot = win.addPlot(title="Live EEG Stream")
-    plot2 = win.addPlot(title="epoch")
-    timer_progbar = QProgressBar(maximum=5000)
+    plot2 = win.addPlot(title="epoch (preprocessed)")
+    timer_progbar = QProgressBar(maximum=500)
     classification_label = QLabel("Classification: Not yet classified")
     classification_label.setStyleSheet("font: 30px")
-    offset_line_edit = QLineEdit()
-    offset_line_edit.setValidator(QIntValidator())
+    # offset_line_edit = QLineEdit()
+    # offset_line_edit.setValidator(QIntValidator())
 
     layout.addWidget(win)  # Add window containing plots to the layout
     layout.addWidget(classification_label)  # Add the label to the layout
     layout.addWidget(timer_progbar)
-    layout.addWidget(offset_line_edit)
+    # layout.addWidget(offset_line_edit)
     
     mainWidget.setLayout(layout)  # Set the layout on the main widget
     mainWidget.show()  # Show the main widget
@@ -161,7 +161,7 @@ if __name__ == '__main__':
     offset = 500
     data = [np.zeros(data_length) for _ in range(num_channels)] # 500 sample window to be displayed.
 
-    pipeline = load('./model0/csp_lda_pipeline.joblib')
+    pipeline = load('./csp_lda_pipeline.joblib')
 
     curves = [plot.plot(pen=pg.intColor(i)) for i in range(num_channels)]
     curves_epoch = [plot2.plot(pen=pg.intColor(i)) for i in range(num_channels)]
@@ -170,12 +170,12 @@ if __name__ == '__main__':
     eeg_inlet, result_outlet = init_lsl()
 
     # set data thread and signal connections
-    data_thread = DataThread(epoch_length=1000, classify_interval=5000)
+    data_thread = DataThread(epoch_length=1000, classify_interval=500)
     data_thread.data_signal.connect(update_data_and_plot)
     data_thread.classification_signal.connect(
         lambda result : classification_label.setText(f"Classification: {result}"))
     data_thread.timer_signal.connect(
-        lambda time : timer_progbar.setValue(5000 - time))
+        lambda time : timer_progbar.setValue(500 - time))
     data_thread.epoch_signal.connect(plot_epoch)
     data_thread.start()
 
