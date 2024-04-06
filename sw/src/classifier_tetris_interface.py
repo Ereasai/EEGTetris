@@ -21,4 +21,4 @@ while True:
     if res is not None:
         mvt = res[0]
         print(f'i got {mvt}')
-        # keyboard.press_and_release(mvt)
+        keyboard.press_and_release(mvt)
