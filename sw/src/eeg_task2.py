@@ -61,18 +61,18 @@ def RunParadigm():
             # task = LEFT_ARM, RIGHT_ARM
 
             # FIXATION
-            CreateMarker(task) 
+            CreateMarker(task)
             fixation.draw()
             WINDOW.flip()
             core.wait(2)
 
             # CUE
             beep.play()
-            CreateMarker("CUE")
+            CreateMarker('CUE')
             core.wait(random.uniform(0.5, 0.8))
 
             # TASK
-            CreateMarker(f'{task}_START')
+            CreateMarker('MI_START')
 
             if task == 'LEFT_ARM':
                 taskStim.text = f'< < imagine {task} < <'
@@ -87,7 +87,7 @@ def RunParadigm():
                 core.wait(4)
 
             WINDOW.flip()
-            CreateMarker(f'{task}_END')
+            CreateMarker('MI_END')
 
             core.wait(random.uniform(0.5, 0.85))
 
