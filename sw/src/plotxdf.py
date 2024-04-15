@@ -1,5 +1,6 @@
 # mostly written by CHATGPT
 
+import sys
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -36,4 +37,12 @@ def plot_eeg_with_event_markers(eeg_file_path, markers_file_path):
 
 # Replace 'path_to_your_eeg_data.csv' and 'path_to_your_markers_data.csv' with the actual paths to your files
 
-plot_eeg_with_event_markers('./xdf-results/t0_eeg.csv', './xdf-results/t0_markers.csv')
+if (len(sys.argv) < 2):
+    print('Usage: py plotxdf.py [eeg_filename] [markers_filename]')
+    print('The file path are assumed to start in ./xdf-results.')
+    print('So if you just used xdfToCSV, you do not have to specify the length.')
+    exit()
+
+eeg_fname = sys.argv[1]
+marker_fname = sys.argv[2]
+plot_eeg_with_event_markers(f'./xdf-results/{eeg_fname}', f'./xdf-results/{marker_fname}')
