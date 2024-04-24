@@ -49,7 +49,7 @@ def classify(epoch_data):
     # result looks like [trial1_result, trial2_result, ...]
     # since we only pass in single trial, [trial_result]
 
-    return ['left', 'right', 'up'][random.randint(0,2)]
+    return ['left', 'right'][random.randint(0,1)]
     # return ['left','right'][int(result[0].item())]
 
 def init_lsl():
