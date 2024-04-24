@@ -1,5 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QVBoxLayout, QWidget, QLabel, QProgressBar, QLineEdit
-from PyQt5.QtGui import QIntValidator
+from PyQt5.QtWidgets import QApplication, QVBoxLayout, QWidget, QLabel, QProgressBar
 from PyQt5.QtCore import QThread, pyqtSignal
 import pyqtgraph as pg
 import numpy as np
@@ -10,49 +9,30 @@ import sys
 import random
 import mne
 
-from joblib import load
+import joblib 
 from custom_transformers import FilterBank
 
 
 def vis_mne(epoch, Fs=300, l_freq=0.1, h_freq=30):
-    t  = np.array([tup[0] for tup in epoch]).reshape((-1, 1))
-    sg = np.array([tup[1] for tup in epoch])
 
-    fsg = mne.filter.filter_data(sg.T, sfreq=Fs, l_freq=l_freq, h_freq=h_freq)
+    fsg = mne.filter.filter_data(epoch, sfreq=Fs, l_freq=l_freq, h_freq=h_freq)
 
-    return t, fsg.T
+    return fsg
 
 def vis_preprocess(epoch, Wn=[7, 30], Fs=300, n=4):
-    t  = np.array([tup[0] for tup in epoch]).reshape((-1, 1))
-    sg = np.array([tup[1] for tup in epoch])
-
     sos = signal.butter(n, Wn, btype='band', fs=Fs, output='sos')
-    fsg = signal.sosfilt(sos, sg, axis=0)
+    fsg = signal.sosfilt(sos, epoch, axis=0)
 
-    return t, fsg
-
-
-pipeline = None
-eeg_inlet = None
-result_outlet = None
-
-# Assuming you have a classifier function defined somewhere in your code
-def classify(epoch_data):
-    channel_data = [channels for _, channels in epoch_data]
-    channel_data_transposed = np.array(channel_data).T
-    channel_data_transposed = channel_data_transposed[0:4]
-    
-    # add an extra dimension to represent a single epoch to classify
-    single_trial_formatted = np.expand_dims(channel_data_transposed, axis=0)
-
-    result = pipeline.predict(single_trial_formatted)
-    # result looks like [trial1_result, trial2_result, ...]
-    # since we only pass in single trial, [trial_result]
-
-    return ['left', 'right'][random.randint(0,1)]
-    # return ['left','right'][int(result[0].item())]
+    return fsg
 
 def init_lsl():
+    """
+    Sets up the LSL inlets and outlets.
+    * `eeg_inlet` is the incoming EEG stream.
+    * `result_outlet` is the outgoing result stream.
+    
+    Returns (`eeg_inlet`, `result_outlet`)
+    """
     print("Looking for an EEG stream...")
     streams = pylsl.resolve_stream('type', 'EEG')
     inlet = pylsl.StreamInlet(streams[0])
@@ -64,74 +44,106 @@ def init_lsl():
 
     return inlet, result_outlet
 
+def classify(epoch_data, pipeline):
+    """
+    Input:
+    * `epoch_data` is a numpy array of shape (n_channels, n_samples).
+    
+    Output:
+    * classification result of the epoch.
+    """
+    
+    result = pipeline.predict(epoch_data)
+    # we expect the result to be either 0 or 1 or 2.
+
+    return ['left', 'right', 'baseline'][result]
+
+def update_data_and_plot(samples):
+    """
+    Input
+    * `samples` is an numpy array of shape (n_channels, n_samples)
+
+    It will update the `data_buffer` by shifting it (discarding n_samples of oldest samples)
+    and pasting in `samples` in the front.
+
+    """
+    global data_buffer, curves, window_size, n_channels
+    offset = 500 # graphing: offset between each channel
+
+    # samples has shape (n_channels, n_samples).
+    n_samples = samples.shape[1]
+    data_buffer = np.roll(data_buffer, n_samples, axis=1) # shift --> by n_samples.
+    data_buffer[:,0:n_samples] = samples
+
+    # draw each channel on the plot.
+    for i in range(n_channels):
+        # plot backwards to make it seem like new data comes in from the right.
+        curves[i].setData(np.arange(window_size),           # 0 1 2 ... window_size-1
+                          data_buffer[i,::-1] + i * offset) # x[N-1] ... x[0]
+
+def plot_epoch (epoch):
+    global curves_epoch, n_channels
+    offset = 500
+    n_samples = epoch.shape[1]
+
+    epoch = vis_mne(epoch) # preprocessor
+    
+    for i in range(n_channels):
+        curves_epoch[i].setData(np.arange(n_samples), 
+                                epoch[i, ::-1] + i * offset)
+
 class DataThread(QThread):
     data_signal = pyqtSignal(np.ndarray)
+    epoch_signal = pyqtSignal(np.ndarray)
     classification_signal = pyqtSignal(str)
     timer_signal = pyqtSignal(int)
-    epoch_signal = pyqtSignal(list)
 
-    def __init__(self, epoch_length=1000, classify_interval=100):
+    def __init__(self, epoch_size=900, classify_interval=100, pipeline=None):
         super(DataThread, self).__init__()
-        self.epoch_length = epoch_length  # Number of samples in an epoch
-        self.classify_interval = classify_interval  # Interval to classify and reset in ms
+        self.classify_interval = classify_interval
         self.last_classify_time = 0
-        self.epoch_data = []
+        self.epoch_size = epoch_size
+        self.pipeline = pipeline
 
     def run(self):
         while True:
-            samples, timestamps = eeg_inlet.pull_chunk(timeout=1.0, max_samples=10)
-            if timestamps:
-                current_time = int(time.time() * 1000)  # Current time in ms
+            samples, timestamps = eeg_inlet.pull_chunk(timeout=1.0, max_samples=100)
+            
+            # do not proceed if we are getting no data.
+            if (len(timestamps)==0):
+                continue
 
-                self.data_signal.emit(np.array(samples))
-                
-                self.epoch_data.extend([(t, s) for t, s in zip(timestamps, samples)])
+            samples = np.array(samples).T # (n_samples, n_channels)
+            samples = samples[:,::-1] # it comes in as oldest to youngest.
+            # but we want youngest to be in the front, and oldest in the back.
+            self.data_signal.emit(samples) 
 
-                # update timer
-                self.timer_signal.emit(self.classify_interval + self.last_classify_time - current_time)
+            current_time = int(time.time() * 1000)  # current time in ms
 
-                if current_time - self.last_classify_time >= self.classify_interval:
+            # update GUI timer, it wants "remaining time"
+            self.timer_signal.emit(self.classify_interval + self.last_classify_time - current_time)
 
-                    self.last_classify_time = current_time;
-                    
-                    result = classify(self.epoch_data)
-                    result_outlet.push_sample(pylsl.vectorstr([result]))
-                    
-                    self.classification_signal.emit(result)
-                    self.epoch_signal.emit(self.epoch_data)
+            time_elapsed = current_time - self.last_classify_time
 
-                    self.epoch_data.clear()
+            # only classify if enough time has passed.
+            if time_elapsed < self.classify_interval:
+                continue
+            
+            self.last_classify_time = current_time;
 
-def update_data_and_plot(samples):
-    global data, curves, data_length, offset
-    # Process and plot the chunk of data efficiently
-    for ch_index in range(8):
-        for sample in samples:
-            data[ch_index] = np.roll(data[ch_index], -1)
-            data[ch_index][-1] = sample[ch_index]  # Assuming samples are structured [sample][channel]
-        curves[ch_index].setData(np.arange(data_length), data[ch_index] + ch_index * offset)
+            # the front entries are the recent
+            epoch_data = data_buffer[:, :self.epoch_size]
+            self.epoch_signal.emit(epoch_data) # for plotting epoch.
 
-def plot_epoch (epoch):
-    global data, curves_epoch, data_length, offset
+            result = classify(epoch_data, self.pipeline) # run pipeline!
 
-    # sort by time
-    epoch = sorted(epoch, key=lambda x: x[0])
+            result_outlet.push_sample(pylsl.vectorstr([result])) # broadcast the result to LSL.
+            
+            self.classification_signal.emit(result) # update GUI for result.
 
-    # apply preprocessing
-    # x, ys = vis_mne(epoch)
-    # x = x.reshape(-1)
-
-    # no preprocessing
-    x  = np.array([tup[0] for tup in epoch]).reshape(-1)
-    ys = np.array([tup[1] for tup in epoch])
-    
-    # update each curve (8 channels => 8 curves)
-    for ch_index in range(8):
-        y_offset = ch_index * offset
-        curves_epoch[ch_index].setData(x, ys[:,ch_index] + y_offset)
-        
 
 if __name__ == '__main__':
+    # GUI setup
     app = QApplication([])
     mainWidget = QWidget()  # Main widget that holds the layout
     layout = QVBoxLayout()  # Vertical layout
@@ -144,38 +156,62 @@ if __name__ == '__main__':
     timer_progbar = QProgressBar(maximum=500)
     classification_label = QLabel("Classification: Not yet classified")
     classification_label.setStyleSheet("font: 30px")
-    # offset_line_edit = QLineEdit()
-    # offset_line_edit.setValidator(QIntValidator())
 
     layout.addWidget(win)  # Add window containing plots to the layout
     layout.addWidget(classification_label)  # Add the label to the layout
     layout.addWidget(timer_progbar)
-    # layout.addWidget(offset_line_edit)
-    
+
     mainWidget.setLayout(layout)  # Set the layout on the main widget
     mainWidget.show()  # Show the main widget
 
+    # --------------------------------------------
+
     # set globals
-    num_channels = 8
-    data_length = 500
-    offset = 500
-    data = [np.zeros(data_length) for _ in range(num_channels)] # 500 sample window to be displayed.
+    n_channels = 8
+    window_size = 1000 # buffer contains 1000 samples
+    interval = 500 # ms
+    epoch_size = 900
 
-    pipeline = load('./csp_lda_pipeline.joblib')
+    data_buffer = np.zeros((8, 1000)) # buffer
 
-    curves = [plot.plot(pen=pg.intColor(i)) for i in range(num_channels)]
-    curves_epoch = [plot2.plot(pen=pg.intColor(i)) for i in range(num_channels)]
+    ### LOAD PIPELINE ###
+    # pipeline = joblib.load('./csp_lda_pipeline.joblib')
+    class DumbClassifier():
+        """
+        Placeholder classifier that guesses between three options.
+        """
+        def __init__(self):
+            pass
+        def predict(self, X):
+            # ignore X, I'm guessing. 
+            assert (X.shape == (8,900))
+            return random.randint(0,2)
+    
+    pipeline = DumbClassifier()
 
-    # setup outlets
+    #####################
+
+    # setup intlets, and outlets
+    # the inlet is incoming EEG data
+    # the outlet is the classification results
     eeg_inlet, result_outlet = init_lsl()
 
+
+
+    # this sets up each 'line' of the channels
+    curves = [plot.plot(pen=pg.intColor(i)) for i in range(n_channels)]
+    curves_epoch = [plot2.plot(pen=pg.intColor(i)) for i in range(n_channels)]
+    plot.setXRange(100, epoch_size)
+    plot.setMouseEnabled(x=False, y=False)
+
     # set data thread and signal connections
-    data_thread = DataThread(epoch_length=1000, classify_interval=500)
+    # signals are callbacks
+    data_thread = DataThread(epoch_size=epoch_size, classify_interval=interval, pipeline=pipeline)
     data_thread.data_signal.connect(update_data_and_plot)
     data_thread.classification_signal.connect(
         lambda result : classification_label.setText(f"Classification: {result}"))
     data_thread.timer_signal.connect(
-        lambda time : timer_progbar.setValue(500 - time))
+        lambda time : timer_progbar.setValue(interval - time))
     data_thread.epoch_signal.connect(plot_epoch)
     data_thread.start()
 
