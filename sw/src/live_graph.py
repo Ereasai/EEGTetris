@@ -1,17 +1,18 @@
-from PyQt5.QtWidgets import QApplication, QVBoxLayout, QWidget, QLabel, QProgressBar
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtWidgets import QApplication, QHBoxLayout, QVBoxLayout, QGridLayout, QWidget, QLabel, QProgressBar
+from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtGui import QColor, QPen
 import pyqtgraph as pg
 import numpy as np
 import pylsl
 import time
 from scipy import signal
+from scipy.signal import welch
+import mne
 import sys
 import random
-import mne
 
 import joblib 
 from custom_transformers import FilterBank
-
 
 def vis_mne(epoch, Fs=300, l_freq=0.1, h_freq=30):
 
@@ -82,9 +83,13 @@ def update_data_and_plot(samples):
                           data_buffer[i,::-1] + i * offset) # x[N-1] ... x[0]
 
 def plot_epoch (epoch):
-    global curves_epoch, n_channels
-    offset = 500
+    global curves_epoch, curves_psd, n_channels
+    offset = 500 # graphing: offset between each channel
     n_samples = epoch.shape[1]
+
+    for i in range(n_channels):
+        freq, power = welch(epoch[i], 300)
+        curves_psd[i].setData(freq, power)
 
     epoch = vis_mne(epoch) # preprocessor
     
@@ -93,6 +98,11 @@ def plot_epoch (epoch):
                                 epoch[i, ::-1] + i * offset)
 
 class DataThread(QThread):
+    """
+    Handles any data related operation on a separate thread. It will pull data chunks
+    from LSL, and after certain time interval, it will run a classifier and broadcast
+    it to the GUI and LSL outlet. 
+    """
     data_signal = pyqtSignal(np.ndarray)
     epoch_signal = pyqtSignal(np.ndarray)
     classification_signal = pyqtSignal(str)
@@ -107,7 +117,7 @@ class DataThread(QThread):
 
     def run(self):
         while True:
-            samples, timestamps = eeg_inlet.pull_chunk(timeout=1.0, max_samples=100)
+            samples, timestamps = eeg_inlet.pull_chunk(timeout=1.0, max_samples=1)
             
             # do not proceed if we are getting no data.
             if (len(timestamps)==0):
@@ -141,28 +151,64 @@ class DataThread(QThread):
             
             self.classification_signal.emit(result) # update GUI for result.
 
+UCSD_BLUE = QColor(0, 98, 155)
+WHITE = QColor(255,255,255)
+
+CURVE_COLORS = [
+    (0, 0, 200),    # Dark Blue
+    (200, 0, 0),    # Dark Red
+    (0, 128, 0),    # Dark Green
+    (128, 0, 128),  # Purple
+    (255, 140, 0)   # Dark Orange
+]
+
+def generate_high_contrast_curves(plot):
+    global n_channels
+    curves = []
+    
+    for i in range(n_channels):
+        color = QColor(*CURVE_COLORS[i % len(CURVE_COLORS)])
+        pen = pg.mkPen(color=color, width=2)
+        # pen.setWidth(2)  # Set pen width for better visibility
+        curve = plot.plot(pen=pen)
+        curves.append(curve)
+
+    return curves
 
 if __name__ == '__main__':
     # GUI setup
     app = QApplication([])
-    mainWidget = QWidget()  # Main widget that holds the layout
-    layout = QVBoxLayout()  # Vertical layout
+    main_widget = QWidget()  # Main widget that holds the layout
+    layout = QGridLayout()
     
-    win = pg.GraphicsLayoutWidget()
+    eeg_plot_container = pg.GraphicsLayoutWidget()
+    epoch_plot_container = pg.GraphicsLayoutWidget()
+    psd_plot_container = pg.GraphicsLayoutWidget()
     pg.setConfigOptions(antialias=True)
 
-    plot = win.addPlot(title="Live EEG Stream")
-    plot2 = win.addPlot(title="epoch (preprocessed)")
+    eeg_plot_container.setBackground(WHITE)
+    epoch_plot_container.setBackground(WHITE)
+    psd_plot_container.setBackground(WHITE)
+    plot = eeg_plot_container.addPlot(title="Live EEG Stream")
+
+    plot2 = epoch_plot_container.addPlot(title="epoch (preprocessed)")
+    plot_psd = psd_plot_container.addPlot(title="psd")
+    layout.addWidget(eeg_plot_container,0,0)
+    layout.addWidget(epoch_plot_container,1,0)
+    layout.addWidget(psd_plot_container,0,1)
+
+    classification_container = QVBoxLayout()
     timer_progbar = QProgressBar(maximum=500)
-    classification_label = QLabel("Classification: Not yet classified")
-    classification_label.setStyleSheet("font: 30px")
+    classification_label = QLabel("N/A")
+    classification_label.setStyleSheet("font: 200px;")
+    classification_label.setAlignment(Qt.AlignCenter)
+    classification_container.addWidget(classification_label)
+    classification_container.addWidget(timer_progbar)
+    classification_container.setAlignment(Qt.AlignCenter)
+    layout.addLayout(classification_container,1,1)
 
-    layout.addWidget(win)  # Add window containing plots to the layout
-    layout.addWidget(classification_label)  # Add the label to the layout
-    layout.addWidget(timer_progbar)
-
-    mainWidget.setLayout(layout)  # Set the layout on the main widget
-    mainWidget.show()  # Show the main widget
+    main_widget.setLayout(layout)  # Set the layout on the main widget
+    main_widget.show()  # Show the main widget
 
     # --------------------------------------------
 
@@ -199,20 +245,31 @@ if __name__ == '__main__':
 
 
     # this sets up each 'line' of the channels
-    curves = [plot.plot(pen=pg.intColor(i)) for i in range(n_channels)]
-    curves_epoch = [plot2.plot(pen=pg.intColor(i)) for i in range(n_channels)]
+    # curves = [plot.plot(pen=pg.intColor(i)) for i in range(n_channels)]
+    # curves_epoch = [plot2.plot(pen=pg.intColor(i)) for i in range(n_channels)]
+    # curves_psd = [plot_psd.plot(pen=pg.intColor(i)) for i in range(n_channels)]
+    curves = generate_high_contrast_curves(plot)
+    curves_epoch = generate_high_contrast_curves(plot2)
+    curves_psd = generate_high_contrast_curves(plot_psd)
+
+
     plot.setXRange(100, epoch_size)
     plot.setMouseEnabled(x=False, y=False)
+
+    plot_psd.setXRange(0,60)
+    plot_psd.setLogMode(x=False,y=True)
 
     # set data thread and signal connections
     # signals are callbacks
     data_thread = DataThread(epoch_size=epoch_size, classify_interval=interval, pipeline=pipeline)
+    
     data_thread.data_signal.connect(update_data_and_plot)
+    data_thread.epoch_signal.connect(plot_epoch)
+
     data_thread.classification_signal.connect(
-        lambda result : classification_label.setText(f"Classification: {result}"))
+        lambda result : classification_label.setText(f"{result.upper()}"))
     data_thread.timer_signal.connect(
         lambda time : timer_progbar.setValue(interval - time))
-    data_thread.epoch_signal.connect(plot_epoch)
     data_thread.start()
 
     sys.exit(app.exec_())
