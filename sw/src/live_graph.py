@@ -14,6 +14,8 @@ import random
 import joblib 
 from custom_transformers import FilterBank
 
+from final_classifier import seven_bandpass, seven_pca_transform
+
 def vis_mne(epoch, Fs=300, l_freq=0.1, h_freq=30):
 
     fsg = mne.filter.filter_data(epoch, sfreq=Fs, l_freq=l_freq, h_freq=h_freq)
@@ -54,7 +56,8 @@ def classify(epoch_data, pipeline):
     * classification result of the epoch.
     """
     
-    result = pipeline.predict(epoch_data)
+    X = vis_preprocess(epoch_data, Wn=[1, 50])
+    result = pipeline.predict(X)
     # we expect the result to be either 0 or 1 or 2.
 
     return ['left', 'right', 'baseline'][result]
@@ -232,8 +235,36 @@ if __name__ == '__main__':
             # ignore X, I'm guessing. 
             assert (X.shape == (8,900))
             return random.randint(0,2)
+
+    class SevenPCA():
+        """
+        """
+        def __init__(self):
+            self.pca_list = joblib.load('./seven_pca.joblib')
+            self.svm = joblib.load('./svm_ali.joblib')
+
+        def predict(self, X):
+            info = mne.create_info(
+                ch_names=['EEG0', 'EEG1', 'EEG2', 'EEG3', 'EOG4','EEG5','EEG6'],
+                ch_types=['eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg'],
+                sfreq=300)
+            
+            print(X[:7,:].shape)
+            
+            X_epoch = mne.EpochsArray(np.array([X[:7,:]]), info)
+            X_filt = seven_bandpass(X_epoch)
+            X_filt = np.reshape(X_filt, (7,1,-1))
+            X_pca = seven_pca_transform(X_filt, self.pca_list)
+            X_pca = np.reshape(X_pca,(1,-1))
+            result = self.svm.predict(X_pca)
+
+            res = result[0]
+            if (res == -1):
+                res = 2
+
+            return res
     
-    pipeline = DumbClassifier()
+    pipeline = SevenPCA()
 
     #####################
 
