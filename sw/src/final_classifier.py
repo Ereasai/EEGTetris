@@ -34,3 +34,17 @@ def seven_pca_transform(X_seven_F, pca_list):
     for i in range(7):
         X_seven_t.append(pca_list[i].transform(X_seven_F[i]))
     return np.array(X_seven_t)
+
+def seven_svm_transform(X,svm_l):
+    X_seven_t = []
+    for i in range(7):
+        X_seven_t.append(svm_l[i].predict(X[i,:,:]))
+    return np.array(X_seven_t)
+
+def seven_svm_votes(votes):
+    """
+    Given a numpy vector, return the most common value.
+    """
+    values, counts = np.unique(votes, return_counts=True)
+    most_common_value = values[np.argmax(counts)]
+    return most_common_value

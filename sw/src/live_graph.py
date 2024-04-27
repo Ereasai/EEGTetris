@@ -14,7 +14,7 @@ import random
 import joblib 
 from custom_transformers import FilterBank
 
-from final_classifier import seven_bandpass, seven_pca_transform
+from final_classifier import seven_bandpass, seven_pca_transform, seven_svm_transform, seven_svm_votes
 
 def vis_mne(epoch, Fs=300, l_freq=0.1, h_freq=30):
 
@@ -56,7 +56,7 @@ def classify(epoch_data, pipeline):
     * classification result of the epoch.
     """
     
-    X = vis_preprocess(epoch_data, Wn=[1, 50])
+    X = vis_preprocess(epoch_data, Wn=[1, 50]) # bandpass 1Hz - 50Hz
     result = pipeline.predict(X)
     # we expect the result to be either 0 or 1 or 2.
 
@@ -241,16 +241,14 @@ if __name__ == '__main__':
         """
         def __init__(self):
             self.pca_list = joblib.load('./seven_pca.joblib')
-            self.svm = joblib.load('./svm_ali.joblib')
+            self.svm = joblib.load('./single_svm.joblib')
 
         def predict(self, X):
             info = mne.create_info(
                 ch_names=['EEG0', 'EEG1', 'EEG2', 'EEG3', 'EOG4','EEG5','EEG6'],
                 ch_types=['eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg'],
                 sfreq=300)
-            
-            print(X[:7,:].shape)
-            
+
             X_epoch = mne.EpochsArray(np.array([X[:7,:]]), info)
             X_filt = seven_bandpass(X_epoch)
             X_filt = np.reshape(X_filt, (7,1,-1))
@@ -263,8 +261,33 @@ if __name__ == '__main__':
                 res = 2
 
             return res
-    
-    pipeline = SevenPCA()
+
+    class SevenPCAAndSVM(): 
+        def __init__(self):
+            self.pca_list = joblib.load('./seven_pca.joblib')
+            self.svm_list = joblib.load('./seven_svm.joblib')
+
+        def predict(self, X):
+
+            info = mne.create_info(
+                ch_names=['EEG0', 'EEG1', 'EEG2', 'EEG3', 'EOG4','EEG5','EEG6'],
+                ch_types=['eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg', 'eeg'],
+                sfreq=300)
+
+            X_epoch = mne.EpochsArray(np.array([X[:7,:]]), info)
+            X_filt = seven_bandpass(X_epoch)
+            X_filt = np.reshape(X_filt, (7,1,-1))
+            X_pca = seven_pca_transform(X_filt, self.pca_list)
+            # X_pca = np.reshape(X_pca,(1,-1))
+            predictions = seven_svm_transform(X_pca, self.svm_list)
+            result = seven_svm_votes(predictions)
+
+            if (result == -1): # map baseline value to 2
+                result = 2
+
+            return int(result)
+        
+    pipeline = SevenPCAAndSVM()
 
     #####################
 
